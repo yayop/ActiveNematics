@@ -1,21 +1,20 @@
 %% -  --  --  --  --  --  --  --  ---  --  --  --  --  --  --  --  --  - %%
-% ---------------------------- Radius Range ----------------------------- %
+% ----------------------- function getRadiusRange ----------------------- %
 % -------------------------- by Edgardo Rosas --------------------------- %
 % ----------------------------------------------------------------------- %
 %% Inputs                                                                 %
 % - I: Image to be displayed for radius selection                         %
-% - magnification: Magnification level for image visualization            %                               %
 %% Outputs                                                                %
 % - RMin: Minimum radius defined by user                                  %
 % - RMax: Maximum radius defined by user                                  %
 %% --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  -- %
-function [RMin, RMax] = func_getRadiusRange(I, magnification) 
+function [RMin, RMax] = func_getRadiusRange(I) 
     
-    % Display the image with specified magnification
-    imshow(I, [], 'InitialMagnification', magnification)
+    % Display the image with 1500 magnification
+    imshow(I, [], 'InitialMagnification', 1500)
 
     % Set the title of the displayed image
-    title('Select the radius range for tracking')
+    title('Select the radius range of your particle')
 
     % Allow the user to interactively draw minimum radius
     RMin = customWait(drawcircle());

@@ -5,7 +5,7 @@
 %% Inputs                                                                 %
 % - varargin: Variable-length input arguments representing folder names   %
 %% Outputs                                                                %
-% - Folder: Full path name of the created folder                          %                 %
+% - Folder: Full path name of the created folder                          %
 %% --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  --  -- %
 function Folder = func_MakeFolder(varargin)
 
