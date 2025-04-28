@@ -520,7 +520,7 @@ function TrackingAppUnified()
             appData.Video(1).FrameFiles = fullfile(ImageSequencePathName,ImgFileNames);
             appData.Video(1).NFrames = NImages;
             appData.Video(1).Container = fileparts(ImageSequencePathName);
-            appData.Video(1).DetectionFolder = fullfile(appData.Video(1).Container,'Detection');
+            appData.Video(1).DetectionFolder = fullfile(appData.Video(1).Container,'GUI_Detection');
             appData.Video(1).DetectionFile = fullfile(appData.Video(1).DetectionFolder,'Detection.mat');
             appData.Video(1).TrackingFile = fullfile(appData.Video(1).DetectionFolder,'Tracking.mat');
             appData.Video(1).TrajectoriesFile = fullfile(appData.Video(1).DetectionFolder,'Trajectories.mat');
@@ -970,10 +970,31 @@ function detectFrameCallback(~, ~)
         Detection.Dark.Spots = [spotsD, idx*ones(size(spotsD,1),1)];
     end
 
-    % Store updated detection struct
-    appData.Detection = Detection;
+    % ---- merge into appData.Detection without wiping other frames ----
+    if ~isfield(appData,'Detection') || isempty(appData.Detection)
+        appData.Detection = struct('Bright',struct('Spots',[]), ...
+                                   'Dark',  struct('Spots',[]));
+    end
 
-    % Use showImage to handle all plotting consistently
+    % Remove any previous spots from this frame (safe version)
+    if isfield(appData.Detection,'Bright') && isfield(appData.Detection.Bright,'Spots') ...
+            && size(appData.Detection.Bright.Spots,2) >= 4
+        appData.Detection.Bright.Spots(appData.Detection.Bright.Spots(:,4)==idx,:) = [];
+    end
+    if isfield(appData.Detection,'Dark') && isfield(appData.Detection.Dark,'Spots') ...
+            && size(appData.Detection.Dark.Spots,2) >= 4
+        appData.Detection.Dark.Spots(appData.Detection.Dark.Spots(:,4)==idx,:) = [];
+    end
+
+    % Append new spots (if any)
+    if isfield(Detection,'Bright') && isfield(Detection.Bright,'Spots') && ~isempty(Detection.Bright.Spots)
+        appData.Detection.Bright.Spots = [appData.Detection.Bright.Spots ; Detection.Bright.Spots];
+    end
+    if isfield(Detection,'Dark') && isfield(Detection.Dark,'Spots') && ~isempty(Detection.Dark.Spots)
+        appData.Detection.Dark.Spots = [appData.Detection.Dark.Spots ; Detection.Dark.Spots];
+    end
+
+    % Refresh view
     showImage();
 end
 %% ------------------------ detectAll ------------------------- %%
@@ -1174,7 +1195,7 @@ end
             [NImages,ImgFileNames] = func_SortFileNames(paths{i},'*.tif');
             appData.Video(i).FrameFiles = fullfile(paths{i},ImgFileNames);
             appData.Video(i).Container = fileparts(paths{i});  
-            appData.Video(i).DetectionFolder = fullfile(appData.Video(i).Container, 'Detection');
+            appData.Video(i).DetectionFolder = fullfile(appData.Video(i).Container, 'GUI_Detection');
             appData.Video(i).DetectionFile = fullfile(appData.Video(i).DetectionFolder, 'Detection.mat');
             appData.Video(i).TrackingFile = fullfile(appData.Video(i).DetectionFolder, 'Tracking.mat');
             appData.Video(i).TrajectoriesFile = fullfile(appData.Video(i).DetectionFolder, 'Trajectories.mat');
@@ -1629,43 +1650,49 @@ end
         if ~isstruct(Draw) || (~isfield(Draw,'Bright') && ~isfield(Draw,'Dark'))
             Draw = struct('Bright', struct('Spots', []), 'Dark', struct('Spots', []));
         end
-        % Bright spots: offset back to full-image coords
+
+        % ----- clear old spots from this frame (if any) -----
+        if ~isfield(appData,'Detection') || isempty(appData.Detection)
+            appData.Detection = struct('Bright',struct('Spots',[]), ...
+                                       'Dark',  struct('Spots',[]));
+        end
+        % --- ensure existing spots carry a frame index in column 4 ---
+        if isfield(appData.Detection,'Bright') && isfield(appData.Detection.Bright,'Spots') ...
+                && ~isempty(appData.Detection.Bright.Spots) && size(appData.Detection.Bright.Spots,2) < 4
+            nb = size(appData.Detection.Bright.Spots,1);
+            appData.Detection.Bright.Spots = [appData.Detection.Bright.Spots , idx*ones(nb,1)];
+        end
+        if isfield(appData.Detection,'Dark') && isfield(appData.Detection.Dark,'Spots') ...
+                && ~isempty(appData.Detection.Dark.Spots) && size(appData.Detection.Dark.Spots,2) < 4
+            nd = size(appData.Detection.Dark.Spots,1);
+            appData.Detection.Dark.Spots = [appData.Detection.Dark.Spots , idx*ones(nd,1)];
+        end
+        if isfield(appData.Detection,'Bright') && isfield(appData.Detection.Bright,'Spots') ...
+                && size(appData.Detection.Bright.Spots,2) >= 4
+            appData.Detection.Bright.Spots(appData.Detection.Bright.Spots(:,4)==idx,:) = [];
+        end
+        if isfield(appData.Detection,'Dark') && isfield(appData.Detection.Dark,'Spots') ...
+                && size(appData.Detection.Dark.Spots,2) >= 4
+            appData.Detection.Dark.Spots(appData.Detection.Dark.Spots(:,4)==idx,:) = [];
+        end
+
+        % ----- Bright spots: offset back & append -----
         if isfield(Draw, 'Bright') && ~isempty(Draw.Bright.Spots)
             sb = Draw.Bright.Spots;
             sb = [sb(:,1)+ROI(1), sb(:,2)+ROI(2), sb(:,3), idx*ones(size(sb,1),1)];
-            if isfield(appData.Detection, 'Bright') && isfield(appData.Detection.Bright, 'Spots') && ~isempty(appData.Detection.Bright.Spots)
-                appData.Detection.Bright.Spots = [appData.Detection.Bright.Spots; sb];
-            else
-                appData.Detection.Bright.Spots = sb;
-            end
+            appData.Detection.Bright.Spots = [appData.Detection.Bright.Spots ; sb];
         end
-        % Dark spots
+
+        % ----- Dark spots: offset back & append -----
         if isfield(Draw, 'Dark') && ~isempty(Draw.Dark.Spots)
             sd = Draw.Dark.Spots;
             sd = [sd(:,1)+ROI(1), sd(:,2)+ROI(2), sd(:,3), idx*ones(size(sd,1),1)];
-            if isfield(appData.Detection, 'Dark') && isfield(appData.Detection.Dark, 'Spots') && ~isempty(appData.Detection.Dark.Spots)
-                appData.Detection.Dark.Spots = [appData.Detection.Dark.Spots; sd];
-            else
-                appData.Detection.Dark.Spots = sd;
-            end
+            appData.Detection.Dark.Spots = [appData.Detection.Dark.Spots ; sd];
         end
-        % Refresh display, using viewer contrast setting
-        cla(ax);
-        % Display with viewer contrast setting
-        raw = imread(appData.Video(VideoIndex).FrameFiles{idx});
-        switch lower(appData.contrastMode)
-            case 'imadjust'
-                raw = imadjust(raw);
-            case 'histeq'
-                raw = histeq(raw);
-            case 'adapthisteq'
-                raw = adapthisteq(raw);
-        end
-        imshow(raw, 'Parent', ax);
-        hold(ax, 'on');
-        % Optionally, mark the ROI (optional, not required by instructions)
-        %rectangle(ax, 'Position', ROI, 'EdgeColor', 'g', 'LineStyle', '--', 'LineWidth', 1);
+
         appData.ROICurrent = ROI;
+        % Show updated detections on screen
+        showImage();
     end
 %% ------------------------ -end- ------------------------- %%
 end
